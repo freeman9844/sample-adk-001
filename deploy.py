@@ -1,19 +1,24 @@
 """
 Deploy the sample agent to Vertex AI Agent Engine (us-central1).
 
-The Agent Engine runtime runs in us-central1; model inference is routed
-to the global endpoint via the genai.Client configured in agent/client.py.
+Uses vertexai.agent_engines (GA API) instead of the older
+vertexai.preview.reasoning_engines so that:
+  - agent_framework is set in the spec  → Framework shown in the console
+  - async / async_stream / bidi_stream modes are registered → Playground works
+  - model inference is routed to the global endpoint via GOOGLE_CLOUD_LOCATION
+    override in agent/agent.py
 
 Usage:
     python deploy.py --project YOUR_PROJECT_ID
     python deploy.py --project YOUR_PROJECT_ID --delete RESOURCE_NAME
+    python deploy.py --project YOUR_PROJECT_ID --list
 """
 
 import argparse
 import os
 
 import vertexai
-from vertexai.preview import reasoning_engines
+from vertexai import agent_engines
 
 LOCATION = "us-central1"  # Agent Engine location
 
@@ -24,14 +29,14 @@ def deploy(project_id: str) -> None:
 
     from agent import root_agent
 
-    app = reasoning_engines.AdkApp(
+    app = agent_engines.AdkApp(
         agent=root_agent,
         enable_tracing=True,
     )
 
     print(f"Deploying to Agent Engine in {LOCATION}...")
-    remote_app = reasoning_engines.ReasoningEngine.create(
-        app,
+    remote_app = agent_engines.create(
+        agent_engine=app,
         requirements=[
             "google-adk>=1.0.0",
             "google-genai>=1.0.0",
@@ -57,14 +62,21 @@ def deploy(project_id: str) -> None:
 
 def delete(project_id: str, resource_name: str) -> None:
     vertexai.init(project=project_id, location=LOCATION)
-    reasoning_engines.ReasoningEngine(resource_name).delete()
+    agent_engines.get(resource_name).delete()
     print(f"Deleted: {resource_name}")
+
+
+def list_agents(project_id: str) -> None:
+    vertexai.init(project=project_id, location=LOCATION)
+    for agent in agent_engines.list():
+        print(agent.resource_name, "-", agent.display_name)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", required=True, help="GCP project ID")
     parser.add_argument("--delete", metavar="RESOURCE_NAME", help="Delete a deployed agent")
+    parser.add_argument("--list", action="store_true", help="List deployed agents")
     args = parser.parse_args()
 
     os.environ.setdefault("GOOGLE_CLOUD_PROJECT", args.project)
@@ -72,5 +84,7 @@ if __name__ == "__main__":
 
     if args.delete:
         delete(args.project, args.delete)
+    elif args.list:
+        list_agents(args.project)
     else:
         deploy(args.project)

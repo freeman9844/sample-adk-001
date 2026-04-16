@@ -91,11 +91,9 @@ cmd_delete() {
 
 cmd_list() {
     check_auth
+    install_deps
     info "Listing Agent Engine resources in ${PROJECT_ID} / ${LOCATION}..."
-    gcloud ai reasoning-engines list \
-        --project="${PROJECT_ID}" \
-        --location="${LOCATION}" \
-        --format="table(name, displayName, createTime)"
+    .venv/bin/python deploy.py --project "${PROJECT_ID}" --list
 }
 
 # ---------------------------------------------------------------------------
